@@ -1,6 +1,6 @@
-## Chalk Talk: Build State-of-the-art NLP Models with [Amazon SageMaker](https://aws.amazon.com/sagemaker/) and [GluonNLP](https://gluon-nlp.mxnet.io)
+## AKO 2020 : State-of-the-art NLP with MXNet
 
-Presenter: Haibin Lin, Rachel Hu
+Presenter: Rachel Hu, Wen-ming Ye
 
 ### Abstract 
 
