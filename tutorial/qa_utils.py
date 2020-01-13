@@ -7,7 +7,7 @@ from mxnet.gluon.model_zoo import model_store
 
 def download_qa_ckpt():
     model_store._model_sha1['bert_qa'] = '7eb11865ecac2a412457a7c8312d37a1456af7fc'
-    result = model_store.get_model_file('bert_qa', root='./temp')
+    result = model_store.get_model_file('bert_qa', root='.')
     print('Downloaded checkpoint to {}'.format(result))
     return result
 
