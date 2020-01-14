@@ -1,4 +1,7 @@
 import collections, json, logging, warnings
+import multiprocessing as mp
+from functools import partial
+
 import gluonnlp as nlp
 import mxnet as mx
 from mxnet.gluon import Block, nn
@@ -6,8 +9,7 @@ import bert
 from bert.data.qa import preprocess_dataset, SQuADTransform
 import bert_qa_evaluate
 
-import multiprocessing as mp
-from functools import partial
+
 
 class BertForQA(Block):
     """Model for SQuAD task with BERT.
@@ -57,7 +59,7 @@ def get_all_results(net, vocab, squadTransform, test_dataset, ctx = mx.cpu()):
         indices = vocab[subwords]
         return example_id, indices, type_ids, length, start, end
     
-    dev_data_transform, _ = bert.data.qa.preprocess_dataset(test_dataset, squadTransform)
+    dev_data_transform, _ = preprocess_dataset(test_dataset, squadTransform)
     dev_data_transform = dev_data_transform.transform(_vocab_lookup, lazy=False)
     dev_dataloader = mx.gluon.data.DataLoader(dev_data_transform, batch_size=1, shuffle=False)
     
@@ -77,17 +79,17 @@ def get_all_results(net, vocab, squadTransform, test_dataset, ctx = mx.cpu()):
     return(all_results)
 
 
-def _test_example_transform(question, content):
+def _test_example_transform(test_examples):
     test_examples_tuples = []
     i = 0
     for test in test_examples:
-        tup = (i, "", question, content, [], [])
+        tup = (i, "", test[0], test[1], [], [])
         test_examples_tuples.append(tup)
         i += 1
     return(test_examples_tuples)
 
 
-def model_fn(params_path = "bert_qa-7eb11865.params"):
+def model_fn(model_dir = "", params_path = "bert_qa-7eb11865.params"):
     """
     Load the gluon model. Called once when hosting service starts.
     :param: model_dir The directory where model files are stored.
@@ -100,6 +102,8 @@ def model_fn(params_path = "bert_qa-7eb11865.params"):
                                         use_pooler=False,
                                         pretrained=False)
     net = BertForQA(bert_model)
+    if len(model_dir) > 0:
+        params_path = model_dir + "/" +params_path
     net.load_parameters(params_path, ctx=mx.cpu())
     
     tokenizer = nlp.data.BERTTokenizer(vocab,  lower=True)
@@ -107,7 +111,8 @@ def model_fn(params_path = "bert_qa-7eb11865.params"):
     return net, vocab, transform
 
 
-def transform_fn(model, question_json, content_json, input_content_type=None, output_content_type=None):
+
+def transform_fn(model, input_data, input_content_type=None, output_content_type=None):
     """
     Transform a request using the Gluon model. Called once per request.
     :param model: The Gluon model and the vocab
@@ -142,14 +147,13 @@ def transform_fn(model, question_json, content_json, input_content_type=None, ou
     :return: response payload and content type.
     """
     net, vocab, squadTransform = model
-    if question_json[-4:] == ".json":
-        question = json.loads(question_json)
-        content = json.loads(content_json)
+    if input_data[-4:] == ".json":
+        question, content = json.loads(input_data)
     else:
-        question = question_json
-        content = content_json  
+        question, content = input_data
+    
     test_examples_tuples = [(0, "", question, content, [], [])]
-
+#     test_examples_tuples = _test_example_transform(question, content)
     test_dataset = mx.gluon.data.SimpleDataset(test_examples_tuples)
     all_results = get_all_results(net, vocab, squadTransform, test_dataset, ctx=mx.cpu())
 
