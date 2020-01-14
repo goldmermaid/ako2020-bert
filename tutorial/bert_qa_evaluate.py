@@ -154,7 +154,6 @@ def predict(features,
     nbest : list of (str, float)
         n-best predictions with their probabilities.
     """
-    print("here 1")
     _PrelimPrediction = namedtuple('PrelimPrediction',
                                    ['feature_index', 'start_index', 'end_index',
                                     'pred_start', 'pred_end'])
@@ -170,16 +169,9 @@ def predict(features,
     null_pred_start = 0  # the start logit at the slice with min null score
     null_pred_end = 0  # the end logit at the slice with min null score
 
-    print("here 2")
-    print(len(results), len(features))
     for features_id, (result, feature) in enumerate(zip(results, features)):
         start_indexes = _get_best_indexes(result.start, n_best_size)
         end_indexes = _get_best_indexes(result.end, n_best_size)
-        print("here 3")
-        print(start_indexes, end_indexes)
-        print("feature\n")
-        print(feature)
-
         if version_2:
             feature_null_score = result.start[0] + \
                 result.end[0]
