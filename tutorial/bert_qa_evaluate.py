@@ -21,7 +21,8 @@ import mxnet as mx
 from mxnet import nd
 import mxnet as mx
 import gluonnlp as nlp
-from mxnet.gluon import Block, nn
+from mxnet.gluon import Block, loss, nn
+from mxnet.gluon.loss import Loss
 from mxnet.gluon.model_zoo import model_store
 
 import bert_qa_evaluate
@@ -32,8 +33,10 @@ PredResult = namedtuple('PredResult', ['start', 'end'])
 
 class BertForQA(Block):
     """Model for SQuAD task with BERT.
+
     The model feeds token ids and token type ids into BERT to get the
     pooled BERT sequence representation, then apply a Dense layer for QA task.
+
     Parameters
     ----------
     bert: BERTModel
@@ -52,6 +55,7 @@ class BertForQA(Block):
 
     def forward(self, inputs, token_types, valid_length=None):  # pylint: disable=arguments-differ
         """Generate the unnormalized score for the given the input sequences.
+
         Parameters
         ----------
         inputs : NDArray, shape (batch_size, seq_length)
@@ -61,6 +65,7 @@ class BertForQA(Block):
             first sentence or the second one.
         valid_length : NDArray or None, shape (batch_size,)
             Valid length of the sequence. This is used to mask the padded tokens.
+
         Returns
         -------
         outputs : NDArray
@@ -70,7 +75,41 @@ class BertForQA(Block):
         output = self.span_classifier(bert_output)
         return output
     
+    
+class BertForQALoss(Loss):
+    """Loss for SQuAD task with BERT.
 
+    """
+
+    def __init__(self, weight=None, batch_axis=0, **kwargs):  # pylint: disable=unused-argument
+        super(BertForQALoss, self).__init__(
+            weight=None, batch_axis=0, **kwargs)
+        self.loss = loss.SoftmaxCELoss()
+
+    def hybrid_forward(self, F, pred, label):  # pylint: disable=arguments-differ
+        """
+        Parameters
+        ----------
+        pred : NDArray, shape (batch_size, seq_length, 2)
+            BERTSquad forward output.
+        label : list, length is 2, each shape is (batch_size,1)
+            label[0] is the starting position of the answer,
+            label[1] is the ending position of the answer.
+
+        Returns
+        -------
+        outputs : NDArray
+            Shape (batch_size,)
+        """
+        pred = F.split(pred, axis=2, num_outputs=2)
+        start_pred = pred[0].reshape((0, -3))
+        start_label = label[0]
+        end_pred = pred[1].reshape((0, -3))
+        end_label = label[1]
+        return (self.loss(start_pred, start_label) + self.loss(
+            end_pred, end_label)) / 2
+    
+    
 def download_qa_ckpt():
     model_store._model_sha1['bert_qa'] = '7eb11865ecac2a412457a7c8312d37a1456af7fc'
     result = model_store.get_model_file('bert_qa', root='.')
