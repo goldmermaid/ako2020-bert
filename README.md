@@ -1,6 +1,7 @@
 ## AKO 2020 : State-of-the-art NLP with MXNet
 
-Presenter: Rachel Hu, Wen-ming Ye
+Presenter: Rachel Hu, Wen-ming Ye, Laurens ten Cate
+
 
 ### Abstract 
 
