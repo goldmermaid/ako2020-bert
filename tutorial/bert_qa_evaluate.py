@@ -14,14 +14,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Bert SQuAD evaluate."""
-import re
-import string
+import logging, re, string
 from collections import Counter, namedtuple, OrderedDict
 
 import mxnet as mx
 from mxnet import nd
+import mxnet as mx
+import gluonnlp as nlp
+from mxnet.gluon.model_zoo import model_store
+
+import bert_qa_evaluate
+from bert.data.qa import SQuADTransform
+
 
 PredResult = namedtuple('PredResult', ['start', 'end'])
+
+
+def download_qa_ckpt():
+    model_store._model_sha1['bert_qa'] = '7eb11865ecac2a412457a7c8312d37a1456af7fc'
+    result = model_store.get_model_file('bert_qa', root='.')
+    print('Downloaded checkpoint to {}'.format(result))
+    return result
+
+def simple_predict(dataset, all_results, vocab):
+    tokenizer = nlp.data.BERTTokenizer(vocab=vocab, lower=True)
+    transform = SQuADTransform(tokenizer, is_pad=False, is_training=False, do_lookup=False)
+    dev_dataset = dataset.transform(transform._transform)
+    all_predictions = OrderedDict()
+    for features in dev_dataset:
+        results = all_results[features[0].example_id]
+    
+        prediction, nbest = predict(
+            features=features,
+            results=results,
+            tokenizer=nlp.data.BERTBasicTokenizer(lower=True))
+    
+        print('\nContext: %s\n'%(' '.join(features[0].doc_tokens)))
+        question = features[0].input_ids.index('[SEP]')
+        print('Question: %s\n'%(' '.join((features[0].input_ids[1:question]))))
+        print('Top predictions: ')
+        for i in range(3):
+            print('%.2f%% \t %s'%(nbest[i][1] * 100, nbest[i][0]))
+        print('')
+
+
+
+
+
+
+
+
 
 
 def get_all_results(net, vocab, squadTransform, test_dataset, ctx = mx.cpu()):
@@ -173,6 +215,7 @@ def get_final_text(pred_text, orig_text, tokenizer):
 
     output_text = orig_text[orig_start_position:(orig_end_position + 1)]
     return output_text
+
 
 
 def predict(features,

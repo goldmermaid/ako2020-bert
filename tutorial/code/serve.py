@@ -80,10 +80,25 @@ def get_all_results(net, vocab, squadTransform, test_dataset, ctx = mx.cpu()):
 
 
 def _test_example_transform(test_examples):
+    """
+    Change test examples to a format like SQUAD data.
+    Parameters
+    ---------- 
+    test_examples: a list of (question, context) tuple. 
+        Example: [('Which NFL team represented the AFC at Super Bowl 50?',
+                 'Super Bowl 50 was an American football game ......),
+                  ('Where did Super Bowl 50 take place?',,
+                 'Super Bowl 50 was ......),
+                 ......]
+    Returns
+    ----------
+    test_examples_tuples : a list of SQUAD tuples
+    """
     test_examples_tuples = []
     i = 0
     for test in test_examples:
-        tup = (i, "", test[0], test[1], [], [])
+        question, context = test[0], test[1]  # test.split(" [CONTEXT] ")
+        tup = (i, "", question, context, [], [])
         test_examples_tuples.append(tup)
         i += 1
     return(test_examples_tuples)
@@ -109,7 +124,6 @@ def model_fn(model_dir = "", params_path = "bert_qa-7eb11865.params"):
     tokenizer = nlp.data.BERTTokenizer(vocab,  lower=True)
     transform = SQuADTransform(tokenizer, is_pad=False, is_training=False, do_lookup=False)
     return net, vocab, transform
-
 
 
 def transform_fn(model, input_data, input_content_type=None, output_content_type=None):
@@ -147,17 +161,14 @@ def transform_fn(model, input_data, input_content_type=None, output_content_type
     :return: response payload and content type.
     """
     net, vocab, squadTransform = model
-    if input_data[-4:] == ".json":
-        question, content = json.loads(input_data)
-    else:
-        question, content = input_data
-    
-    test_examples_tuples = [(0, "", question, content, [], [])]
-#     test_examples_tuples = _test_example_transform(question, content)
-    test_dataset = mx.gluon.data.SimpleDataset(test_examples_tuples)
+#     data = input_data
+    data = json.loads(input_data)
+#     test_examples_tuples = [(i, "", question, content, [], [])]
+#     question, context = data #.split(" [CONTEXT] ")
+#     tup = (0, "", question, context, [], [])
+    test_examples_tuples = _test_example_transform(data)
+    test_dataset = mx.gluon.data.SimpleDataset(test_examples_tuples)  # [tup]
     all_results = get_all_results(net, vocab, squadTransform, test_dataset, ctx=mx.cpu())
-
-    
     all_predictions = collections.defaultdict(list) # collections.OrderedDict()
     data_transform = test_dataset.transform(squadTransform._transform)
     for features in data_transform:
