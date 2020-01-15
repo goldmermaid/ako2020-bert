@@ -18,9 +18,63 @@ import re
 import string
 from collections import Counter, namedtuple, OrderedDict
 
+import mxnet as mx
 from mxnet import nd
 
 PredResult = namedtuple('PredResult', ['start', 'end'])
+
+
+def get_all_results(net, vocab, squadTransform, test_dataset, ctx = mx.cpu()):
+    all_results = collections.defaultdict(list)
+    
+    def _vocab_lookup(example_id, subwords, type_ids, length, start, end):
+        indices = vocab[subwords]
+        return example_id, indices, type_ids, length, start, end
+    
+    dev_data_transform, _ = preprocess_dataset(test_dataset, squadTransform)
+    dev_data_transform = dev_data_transform.transform(_vocab_lookup, lazy=False)
+    dev_dataloader = mx.gluon.data.DataLoader(dev_data_transform, batch_size=1, shuffle=False)
+    
+    for data in dev_dataloader:
+        example_ids, inputs, token_types, valid_length, _, _ = data
+        batch_size = inputs.shape[0]
+        output = net(inputs.astype('float32').as_in_context(ctx),
+                     token_types.astype('float32').as_in_context(ctx),
+                     valid_length.astype('float32').as_in_context(ctx))
+        pred_start, pred_end = mx.nd.split(output, axis=2, num_outputs=2)
+        example_ids = example_ids.asnumpy().tolist()
+        pred_start = pred_start.reshape(batch_size, -1).asnumpy()
+        pred_end = pred_end.reshape(batch_size, -1).asnumpy()
+
+        for example_id, start, end in zip(example_ids, pred_start, pred_end):
+            all_results[example_id].append(bert_qa_evaluate.PredResult(start=start, end=end))
+    return(all_results)
+
+
+def _test_example_transform(test_examples):
+    """
+    Change test examples to a format like SQUAD data.
+    Parameters
+    ---------- 
+    test_examples: a list of (question, context) tuple. 
+        Example: [('Which NFL team represented the AFC at Super Bowl 50?',
+                 'Super Bowl 50 was an American football game ......),
+                  ('Where did Super Bowl 50 take place?',,
+                 'Super Bowl 50 was ......),
+                 ......]
+    Returns
+    ----------
+    test_examples_tuples : a list of SQUAD tuples
+    """
+    test_examples_tuples = []
+    i = 0
+    for test in test_examples:
+        question, context = test[0], test[1]  # test.split(" [CONTEXT] ")
+        tup = (i, "", question, context, [], [])
+        test_examples_tuples.append(tup)
+        i += 1
+    return(test_examples_tuples)
+
 
 def _get_best_indexes(logits, n_best_size):
     """Get the n-best logits from a list."""
