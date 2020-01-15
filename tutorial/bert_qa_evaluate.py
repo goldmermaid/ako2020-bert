@@ -21,20 +21,62 @@ import mxnet as mx
 from mxnet import nd
 import mxnet as mx
 import gluonnlp as nlp
+from mxnet.gluon import Block, nn
 from mxnet.gluon.model_zoo import model_store
 
 import bert_qa_evaluate
 from bert.data.qa import SQuADTransform
 
-
 PredResult = namedtuple('PredResult', ['start', 'end'])
 
+
+class BertForQA(Block):
+    """Model for SQuAD task with BERT.
+    The model feeds token ids and token type ids into BERT to get the
+    pooled BERT sequence representation, then apply a Dense layer for QA task.
+    Parameters
+    ----------
+    bert: BERTModel
+        Bidirectional encoder with transformer.
+    prefix : str or None
+        See document of `mx.gluon.Block`.
+    params : ParameterDict or None
+        See document of `mx.gluon.Block`.
+    """
+
+    def __init__(self, bert, prefix=None, params=None):
+        super(BertForQA, self).__init__(prefix=prefix, params=params)
+        self.bert = bert
+        with self.name_scope():
+            self.span_classifier = nn.Dense(units=2, flatten=False)
+
+    def forward(self, inputs, token_types, valid_length=None):  # pylint: disable=arguments-differ
+        """Generate the unnormalized score for the given the input sequences.
+        Parameters
+        ----------
+        inputs : NDArray, shape (batch_size, seq_length)
+            Input words for the sequences.
+        token_types : NDArray, shape (batch_size, seq_length)
+            Token types for the sequences, used to indicate whether the word belongs to the
+            first sentence or the second one.
+        valid_length : NDArray or None, shape (batch_size,)
+            Valid length of the sequence. This is used to mask the padded tokens.
+        Returns
+        -------
+        outputs : NDArray
+            Shape (batch_size, seq_length, 2)
+        """
+        bert_output = self.bert(inputs, token_types, valid_length)
+        output = self.span_classifier(bert_output)
+        return output
+    
 
 def download_qa_ckpt():
     model_store._model_sha1['bert_qa'] = '7eb11865ecac2a412457a7c8312d37a1456af7fc'
     result = model_store.get_model_file('bert_qa', root='.')
     print('Downloaded checkpoint to {}'.format(result))
     return result
+
 
 def simple_predict(dataset, all_results, vocab):
     tokenizer = nlp.data.BERTTokenizer(vocab=vocab, lower=True)
@@ -56,14 +98,6 @@ def simple_predict(dataset, all_results, vocab):
         for i in range(3):
             print('%.2f%% \t %s'%(nbest[i][1] * 100, nbest[i][0]))
         print('')
-
-
-
-
-
-
-
-
 
 
 def get_all_results(net, vocab, squadTransform, test_dataset, ctx = mx.cpu()):
