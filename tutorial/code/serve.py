@@ -1,3 +1,4 @@
+
 import collections, json, logging, warnings
 import multiprocessing as mp
 from functools import partial
@@ -5,8 +6,8 @@ from functools import partial
 import gluonnlp as nlp
 import mxnet as mx
 from mxnet.gluon import Block, nn
-import bert
-from bert.data.qa import preprocess_dataset, SQuADTransform
+# import bert 
+from qa import preprocess_dataset, SQuADTransform
 import bert_qa_evaluate
 
 

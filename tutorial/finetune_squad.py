@@ -441,7 +441,8 @@ def train():
         log.info('Time cost={:.2f} s, Thoughput={:.2f} samples/s'.format(
             epoch_toc - epoch_tic, total_num/(epoch_toc - epoch_tic)))
 
-    net.save_parameters(os.path.join(output_dir, 'net.params'))
+#     net.save_parameters(os.path.join(output_dir, 'net.params'))
+    net.save_parameters('net.params')
 
 
 def evaluate():
